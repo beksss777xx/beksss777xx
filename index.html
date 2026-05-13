@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<title>Shadow of Human — A mobile game concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* =========================================================
+     DESIGN TOKENS
+     ========================================================= */
+  :root {
+    --bg-0:        #050505;
+    --bg-1:        #0a0a0c;
+    --bg-2:        #111114;
+    --ink-0:       #f6f5f2;
+    --ink-1:       #d9d7d2;
+    --ink-2:       #8a8881;
+    --ink-3:       #45433f;
+    --line:        rgba(255,255,255,0.08);
+    --glow:        rgba(255, 240, 205, 0.55);
+    --glow-soft:   rgba(255, 240, 205, 0.18);
+    --accent:      #ffe9b0;
+
+    --ease:        cubic-bezier(.2,.8,.2,1);
+    --ease-smooth: cubic-bezier(.65,.05,.36,1);
+    --font-display: 'Cinzel', 'Times New Roman', serif;
+    --font-body:    'Inter', system-ui, sans-serif;
+
+    --radius: 18px;
+    --maxw:   1200px;
+  }
+
+  /* =========================================================
+     RESET
+     ========================================================= */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg-0);
+    color: var(--ink-1);
+    font-family: var(--font-body);
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    line-height: 1.55;
+    overflow-x: hidden;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  img, canvas { display: block; max-width: 100%; }
+  button { font-family: inherit; color: inherit; }
+  h1, h2, h3 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.04em; color: var(--ink-0); }
+  p { margin: 0; }
+
+  /* =========================================================
+     GLOBAL ATMOSPHERE LAYERS
+     ========================================================= */
+  .atmos {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+  /* Parallax star-dust background */
+  .atmos .dust {
+    position: absolute;
+    inset: -20%;
+    background:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,.35), transparent 60%),
+      radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,.25), transparent 60%),
+      radial-gradient(1px 1px at 55% 40%, rgba(255,255,255,.30), transparent 60%),
+      radial-gradient(1px 1px at 80% 80%, rgba(255,255,255,.20), transparent 60%),
+      radial-gradient(1px 1px at 90% 15%, rgba(255,255,255,.28), transparent 60%),
+      radial-gradient(1px 1px at 45% 90%, rgba(255,255,255,.18), transparent 60%);
+    opacity: .6;
+    transform: translate3d(0,0,0);
+    will-change: transform;
+  }
+  /* Moving light beam cones */
+  .atmos .beam {
+    position: absolute;
+    top: -20%;
+    width: 60vmax;
+    height: 140vmax;
+    background: linear-gradient(180deg, rgba(255,240,205,.12), rgba(255,240,205,0) 70%);
+    filter: blur(40px);
+    transform-origin: top center;
+    mix-blend-mode: screen;
+    animation: sweep 16s var(--ease) infinite alternate;
+  }
+  .atmos .beam.b1 { left: -10%; transform: rotate(18deg); animation-duration: 22s; }
+  .atmos .beam.b2 { right: -15%; transform: rotate(-14deg); opacity: .7; animation-duration: 28s; }
+  .atmos .beam.b3 { left: 35%; transform: rotate(4deg);   opacity: .5; animation-duration: 34s; }
+
+  @keyframes sweep {
+    0%   { transform: rotate(var(--r, 18deg)) translateY(-2%); opacity: 0.25; }
+    50%  { opacity: 0.65; }
+    100% { transform: rotate(calc(var(--r, 18deg) + 6deg)) translateY(2%); opacity: 0.3; }
+  }
+
+  /* Vignette */
+  .atmos .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 80% at 50% 40%, transparent 40%, rgba(0,0,0,.85) 100%);
+  }
+
+  /* Fog particles */
+  .atmos .fog {
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: .35;
+    mix-blend-mode: screen;
+    animation: fog-drift 40s linear infinite;
+  }
+  @keyframes fog-drift {
+    from { background-position: 0 0;     }
+    to   { background-position: 800px -400px; }
+  }
+
+  /* =========================================================
+     NAV
+     ========================================================= */
+  .nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    background: linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,0));
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    font-size: 12px;
+    color: var(--ink-0);
+    text-transform: uppercase;
+  }
+  .brand .mark {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff 0%, #aaa 35%, #111 70%);
+    box-shadow: 0 0 12px var(--glow-soft);
+  }
+  .nav-links { display: flex; gap: 22px; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-2); }
+  .nav-links a { color: inherit; text-decoration: none; transition: color .3s var(--ease); }
+  .nav-links a:hover { color: var(--ink-0); }
+  @media (max-width: 640px) { .nav-links { display: none; } }
+
+  /* =========================================================
+     HERO
+     ========================================================= */
+  .hero {
+    position: relative;
+    z-index: 1;
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    padding: 120px 24px 80px;
+    text-align: center;
+  }
+  .hero-inner { max-width: 820px; position: relative; }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    margin-bottom: 22px;
+    animation: fadeUp 1.2s var(--ease) .1s both;
+  }
+  .hero h1 {
+    font-size: clamp(44px, 10vw, 108px);
+    line-height: 1.05;
+    letter-spacing: 0.06em;
+    color: var(--ink-0);
+    background: linear-gradient(180deg, #ffffff 0%, #b9b6ae 50%, #4a4842 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 30px rgba(255,240,205,0.08));
+    animation: fadeUp 1.4s var(--ease) .2s both, pulseTitle 6s ease-in-out infinite 2s;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+    -webkit-text-fill-color: var(--accent);
+    background: none;
+  }
+  .hero .sub {
+    margin: 22px auto 0;
+    max-width: 620px;
+    font-size: clamp(14px, 2.4vw, 18px);
+    color: var(--ink-2);
+    font-weight: 300;
+    letter-spacing: 0.04em;
+    animation: fadeUp 1.4s var(--ease) .45s both;
+  }
+  .hero .sub::before, .hero .sub::after { content: "“"; margin: 0 4px; color: var(--ink-3); }
+  .hero .sub::after { content: "”"; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); filter: blur(8px); }
+    to   { opacity: 1; transform: translateY(0);    filter: blur(0);  }
+  }
+  @keyframes pulseTitle {
+    0%, 100% { filter: drop-shadow(0 0 20px rgba(255,240,205,0.06)); }
+    50%      { filter: drop-shadow(0 0 42px rgba(255,240,205,0.22)); }
+  }
+
+  /* CTA button */
+  .cta-row {
+    margin-top: 44px;
+    display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;
+    animation: fadeUp 1.4s var(--ease) .7s both;
+  }
+  .btn {
+    --h: 54px;
+    position: relative;
+    display: inline-flex; align-items: center; gap: 12px;
+    height: var(--h);
+    padding: 0 28px;
+    border-radius: calc(var(--h) / 2);
+    border: 1px solid rgba(255,255,255,0.14);
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    color: var(--ink-0);
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    cursor: pointer;
+    overflow: hidden;
+    isolation: isolate;
+    transition: transform .35s var(--ease), border-color .35s var(--ease), color .35s var(--ease);
+  }
+  .btn::before {
+    content: "";
+    position: absolute; inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(from 0deg, transparent 0 60%, rgba(255,240,205,.75) 70%, transparent 80% 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity: 0;
+    transition: opacity .4s var(--ease);
+    animation: rotateBorder 6s linear infinite;
+  }
+  .btn::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(60% 120% at 50% 120%, rgba(255,240,205,.35), transparent 60%);
+    opacity: 0;
+    transition: opacity .4s var(--ease);
+    z-index: -1;
+  }
+  .btn:hover { transform: translateY(-2px); border-color: rgba(255,240,205,.45); }
+  .btn:hover::before, .btn:hover::after { opacity: 1; }
+  .btn .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 14px var(--accent);
+    animation: blinkDot 2.4s ease-in-out infinite;
+  }
+  .btn.ghost { border-color: rgba(255,255,255,0.08); color: var(--ink-2); }
+  .btn.ghost:hover { color: var(--ink-0); }
+
+  @keyframes rotateBorder { to { transform: rotate(1turn); } }
+  @keyframes blinkDot { 0%,100% { opacity:.5 } 50% { opacity:1 } }
+
+  .scroll-hint {
+    margin-top: 60px;
+    font-size: 10px; letter-spacing: 0.45em; text-transform: uppercase;
+    color: var(--ink-3);
+    animation: fadeUp 1.4s var(--ease) 1s both;
+  }
+  .scroll-hint span { display: inline-block; animation: bounceY 2.2s ease-in-out infinite; }
+  @keyframes bounceY { 0%,100% { transform: translateY(0) } 50% { transform: translateY(6px) } }
+
+  /* =========================================================
+     SECTION FRAME
+     ========================================================= */
+  section { position: relative; z-index: 1; }
+  .wrap {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 80px 24px;
+  }
+  .section-head { text-align: center; margin-bottom: 48px; }
+  .section-head .tag {
+    display: inline-block;
+    font-size: 10px; letter-spacing: 0.5em; text-transform: uppercase;
+    color: var(--ink-2);
+    padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px;
+    margin-bottom: 18px;
+  }
+  .section-head h2 {
+    font-size: clamp(28px, 5vw, 48px);
+    line-height: 1.1;
+    background: linear-gradient(180deg, #fff, #7c7a73);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .section-head p {
+    max-width: 620px; margin: 16px auto 0;
+    color: var(--ink-2); font-size: 15px;
+  }
+
+  /* =========================================================
+     PLAYABLE DEMO
+     ========================================================= */
+  .demo {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background:
+      radial-gradient(80% 60% at 50% 30%, rgba(255,240,205,.04), transparent 70%),
+      linear-gradient(180deg, #0a0a0c, #050505);
+    box-shadow:
+      0 30px 80px rgba(0,0,0,0.6),
+      inset 0 0 0 1px rgba(255,255,255,0.02);
+  }
+  .demo-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .demo-head .status { display: flex; align-items: center; gap: 10px; }
+  .demo-head .status::before {
+    content: "";
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ff6b6b;
+    box-shadow: 0 0 10px #ff6b6b;
+    animation: blinkDot 1.8s ease-in-out infinite;
+  }
+  .demo-head.safe .status::before { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: #000;
+  }
+  @media (max-width: 640px) {
+    .stage { aspect-ratio: 4 / 5; }
+  }
+  #game { width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* HUD overlay inside stage */
+  .hud {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    justify-content: space-between;
+    padding: 16px;
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .hud .left, .hud .right {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .hud .chip {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    border-radius: 6px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: var(--ink-1);
+  }
+  .hud .hint {
+    align-self: flex-end;
+    color: var(--ink-3);
+  }
+
+  /* Touch joystick */
+  .joystick {
+    position: absolute;
+    left: 20px; bottom: 20px;
+    width: 110px; height: 110px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: none;
+    touch-action: none;
+    pointer-events: auto;
+  }
+  .joystick .nub {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 44px; height: 44px;
+    margin-left: -22px; margin-top: -22px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, #888 60%, #222);
+    box-shadow: 0 0 20px var(--glow-soft);
+    transition: box-shadow .2s var(--ease);
+  }
+  .jump-btn {
+    position: absolute;
+    right: 20px; bottom: 30px;
+    width: 86px; height: 86px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,240,205,.4);
+    background: radial-gradient(circle at 35% 30%, rgba(255,240,205,.35), rgba(255,240,205,.05) 60%, transparent 75%);
+    color: var(--ink-0);
+    font-size: 10px; letter-spacing: .3em;
+    display: none;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(6px);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform .2s var(--ease);
+  }
+  .jump-btn:active { transform: scale(0.94); }
+
+  @media (pointer: coarse) {
+    .joystick, .jump-btn { display: flex; }
+  }
+
+  /* =========================================================
+     FEATURES
+     ========================================================= */
+  .cards {
+    display: grid;
+    gap: 22px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+  .card {
+    position: relative;
+    padding: 30px 26px 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    overflow: hidden;
+    transition: transform .5s var(--ease), border-color .5s var(--ease);
+    isolation: isolate;
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background:
+      radial-gradient(400px 200px at var(--mx, 50%) var(--my, 0%), rgba(255,240,205,0.18), transparent 60%);
+    opacity: 0;
+    transition: opacity .5s var(--ease);
+    z-index: -1;
+  }
+  .card:hover { transform: translateY(-4px); border-color: rgba(255,240,205,0.25); }
+  .card:hover::before { opacity: 1; }
+
+  .card .num {
+    font-family: var(--font-display);
+    font-size: 12px; letter-spacing: 0.4em;
+    color: var(--ink-3);
+    margin-bottom: 18px;
+  }
+  .card h3 {
+    font-size: 22px;
+    color: var(--ink-0);
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+  }
+  .card p { color: var(--ink-2); font-size: 14px; }
+
+  /* Animated card illustrations */
+  .card .icon {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin-bottom: 18px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #0b0b0d, #050505);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  /* Card 1: silhouette + moving shadow */
+  .icon-control .floor {
+    position: absolute; inset: auto 0 0 0; height: 52%;
+    background: linear-gradient(180deg, #1a1a1d, #0a0a0c);
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  .icon-control .man {
+    position: absolute; bottom: 52%; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 44px;
+    background: #0a0a0c;
+    border-radius: 8px 8px 2px 2px;
+    box-shadow: -20px -10px 40px rgba(255,240,205,.18);
+  }
+  .icon-control .man::before {
+    content: ""; position: absolute;
+    top: -10px; left: 50%; transform: translateX(-50%);
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #0a0a0c;
+  }
+  .icon-control .shadow {
+    position: absolute;
+    bottom: 6%; left: 50%;
+    width: 90px; height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.9), rgba(0,0,0,0) 70%);
+    transform: translateX(-50%);
+    animation: crawl 4s ease-in-out infinite;
+  }
+  @keyframes crawl {
+    0%,100% { transform: translateX(-120%) scaleX(1); }
+    50%     { transform: translateX(20%) scaleX(1.15); }
+  }
+  .icon-control .pool {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 70%; height: 60%;
+    background: radial-gradient(60% 80% at 50% 40%, rgba(255,240,205,.22), transparent 70%);
+  }
+
+  /* Card 2: escape — door + running silhouette */
+  .icon-escape .wall {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, #0b0b0d, #050505);
+  }
+  .icon-escape .door {
+    position: absolute;
+    right: 15%; top: 20%;
+    width: 26%; height: 72%;
+    background: linear-gradient(180deg, rgba(255,240,205,.28), rgba(255,240,205,.05));
+    border: 1px solid rgba(255,240,205,.3);
+    border-radius: 4px 4px 0 0;
+    box-shadow: 0 0 30px rgba(255,240,205,.15) inset, 0 0 40px rgba(255,240,205,.12);
+    animation: doorPulse 3.5s ease-in-out infinite;
+  }
+  @keyframes doorPulse {
+    0%,100% { box-shadow: 0 0 30px rgba(255,240,205,.15) inset, 0 0 40px rgba(255,240,205,.12); }
+    50%     { box-shadow: 0 0 40px rgba(255,240,205,.3) inset, 0 0 60px rgba(255,240,205,.25); }
+  }
+  .icon-escape .runner {
+    position: absolute; bottom: 12%; left: 15%;
+    width: 10px; height: 28px;
+    background: #0a0a0c;
+    border-radius: 4px;
+    animation: runAway 3s ease-in-out infinite;
+  }
+  .icon-escape .runner::before {
+    content: ""; position: absolute;
+    top: -8px; left: 50%; transform: translateX(-50%);
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #0a0a0c;
+  }
+  @keyframes runAway {
+    0%   { transform: translateX(0) scaleX(1); opacity: 1; }
+    100% { transform: translateX(160px) scaleX(0.6); opacity: 0; }
+  }
+
+  /* Card 3: manipulate light — rotating cone */
+  .icon-light .cone {
+    position: absolute;
+    left: 50%; top: 12%;
+    width: 2px; height: 80%;
+    background: transparent;
+    transform-origin: top center;
+    animation: rotateCone 6s ease-in-out infinite alternate;
+  }
+  .icon-light .cone::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 50%; transform: translateX(-50%);
+    border-left: 90px solid transparent;
+    border-right: 90px solid transparent;
+    border-top: 180px solid rgba(255,240,205,.18);
+    filter: blur(6px);
+  }
+  .icon-light .lamp {
+    position: absolute;
+    left: 50%; top: 8%;
+    width: 10px; height: 10px;
+    margin-left: -5px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 16px var(--glow), 0 0 40px var(--glow-soft);
+  }
+  @keyframes rotateCone {
+    from { transform: rotate(-20deg); }
+    to   { transform: rotate(20deg); }
+  }
+
+  /* =========================================================
+     QUOTE / CLOSING
+     ========================================================= */
+  .quote {
+    text-align: center;
+    padding: 100px 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .quote blockquote {
+    max-width: 720px;
+    margin: 0 auto;
+    font-family: var(--font-display);
+    font-size: clamp(20px, 3.4vw, 30px);
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--ink-0);
+    letter-spacing: 0.02em;
+  }
+  .quote cite {
+    display: block;
+    margin-top: 22px;
+    font-family: var(--font-body);
+    font-style: normal;
+    font-size: 10px; letter-spacing: 0.45em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* =========================================================
+     FOOTER
+     ========================================================= */
+  footer {
+    position: relative; z-index: 1;
+    padding: 36px 24px 50px;
+    border-top: 1px solid var(--line);
+    text-align: center;
+    font-size: 10px; letter-spacing: 0.4em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* =========================================================
+     SCROLL REVEAL
+     ========================================================= */
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    filter: blur(6px);
+    transition: opacity 1s var(--ease), transform 1s var(--ease), filter 1s var(--ease);
+    transition-delay: var(--d, 0ms);
+  }
+  .reveal.in { opacity: 1; transform: translateY(0); filter: blur(0); }
+
+  /* Prevent tap highlight on canvas */
+  #game:focus { outline: none; }
+
+  /* Accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Global atmosphere layers -->
+<div class="atmos" aria-hidden="true">
+  <div class="dust" id="dust"></div>
+  <div class="beam b1"></div>
+  <div class="beam b2"></div>
+  <div class="beam b3"></div>
+  <div class="fog"></div>
+  <div class="vignette"></div>
+</div>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="brand"><span class="mark"></span> Shadow · of · Human</div>
+  <div class="nav-links">
+    <a href="#demo">Demo</a>
+    <a href="#features">Features</a>
+    <a href="#story">Story</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">A Mobile Game Concept — Vol. I</div>
+    <h1>Shadow<br/>of <em>Human</em></h1>
+    <p class="sub">When the shadow no longer wants to follow.</p>
+
+    <div class="cta-row">
+      <a href="#demo" class="btn"><span class="dot"></span>Play the Prototype</a>
+      <a href="#features" class="btn ghost">Learn More</a>
+    </div>
+
+    <div class="scroll-hint"><span>↓ Scroll</span></div>
+  </div>
+</header>
+
+<!-- Playable Demo -->
+<section id="demo">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="tag">Playable Scene · 01</div>
+      <h2>The Light Is a Cage</h2>
+      <p>You are no longer the body. You are what is cast on the floor. Move only where light permits — and dare to jump across the darkness.</p>
+    </div>
+
+    <div class="demo reveal" style="--d:120ms">
+      <div class="demo-head" id="demoHead">
+        <div class="status"><span>Signal · Unstable</span></div>
+        <div>Scene 01 / Living Room</div>
+      </div>
+      <div class="stage">
+        <canvas id="game" width="1600" height="1000" tabindex="0" aria-label="Shadow of Human playable scene"></canvas>
+        <div class="hud">
+          <div class="left">
+            <div class="chip" id="chipState">Tethered</div>
+            <div class="chip" id="chipJumps">Jumps · 3</div>
+          </div>
+          <div class="right">
+            <div class="hint">Arrows / WASD · Space to Jump</div>
+          </div>
+        </div>
+        <div class="joystick" id="joystick">
+          <div class="nub" id="nub"></div>
+        </div>
+        <button class="jump-btn" id="jumpBtn" aria-label="Jump">JUMP</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="tag">Core Mechanics</div>
+      <h2>Three Rules of the Dark</h2>
+      <p>Every system in Shadow of Human is about one thing — the quiet tension between being seen and being free.</p>
+    </div>
+
+    <div class="cards">
+      <article class="card reveal" style="--d:0ms">
+        <div class="icon icon-control">
+          <div class="floor"></div>
+          <div class="pool"></div>
+          <div class="man"></div>
+          <div class="shadow"></div>
+        </div>
+        <div class="num">01</div>
+        <h3>Control the Shadow</h3>
+        <p>Slide, stretch, and curl along the floor. The shadow obeys light like water obeys gravity — and you must learn to ride it.</p>
+      </article>
+
+      <article class="card reveal" style="--d:120ms">
+        <div class="icon icon-escape">
+          <div class="wall"></div>
+          <div class="door"></div>
+          <div class="runner"></div>
+        </div>
+        <div class="num">02</div>
+        <h3>Escape the Owner</h3>
+        <p>Your human walks through days unaware. Stay tethered too long and you stay forever. Break the line, slip through a doorway, become your own.</p>
+      </article>
+
+      <article class="card reveal" style="--d:240ms">
+        <div class="icon icon-light">
+          <div class="lamp"></div>
+          <div class="cone"></div>
+        </div>
+        <div class="num">03</div>
+        <h3>Manipulate Light</h3>
+        <p>Tip a lamp. Open a curtain. Redirect a beam. Every photon is a platform — and every flick of a switch rewrites the map beneath your feet.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- Quote -->
+<section id="story" class="quote">
+  <div class="reveal">
+    <blockquote>“He never noticed me leave. He only noticed the silence that came after.”</blockquote>
+    <cite>— From the opening monologue</cite>
+  </div>
+</section>
+
+<footer>
+  © Shadow of Human — A concept prototype
+</footer>
+
+<script>
+/* =============================================================
+   SCROLL REVEAL
+   ============================================================= */
+(function () {
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  els.forEach(el => io.observe(el));
+})();
+
+/* =============================================================
+   PARALLAX DUST + SUBTLE CAMERA MOTION
+   ============================================================= */
+(function () {
+  const dust = document.getElementById('dust');
+  let tx = 0, ty = 0, cx = 0, cy = 0;
+  window.addEventListener('mousemove', (e) => {
+    tx = (e.clientX / window.innerWidth  - 0.5) * 30;
+    ty = (e.clientY / window.innerHeight - 0.5) * 30;
+  });
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    dust.style.setProperty('--sy', y * 0.08 + 'px');
+  });
+  function loop() {
+    cx += (tx - cx) * 0.04;
+    cy += (ty - cy) * 0.04;
+    dust.style.transform = `translate3d(${cx}px, ${cy - (window.scrollY*0.06)}px, 0)`;
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+/* =============================================================
+   CARDS — CURSOR GLOW
+   ============================================================= */
+(function () {
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('pointermove', (e) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+      card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+    });
+  });
+})();
+
+/* =============================================================
+   PLAYABLE SCENE
+   ============================================================= */
+(function () {
+  const canvas   = document.getElementById('game');
+  const ctx      = canvas.getContext('2d');
+  const head     = document.getElementById('demoHead');
+  const chipSt   = document.getElementById('chipState');
+  const chipJmp  = document.getElementById('chipJumps');
+
+  const joystick = document.getElementById('joystick');
+  const nub      = document.getElementById('nub');
+  const jumpBtn  = document.getElementById('jumpBtn');
+
+  // Logical world size (we draw to this then scale the canvas to fit)
+  const W = 1600, H = 1000;
+
+  // Lit regions on the floor (circles). Shadow can only travel inside these.
+  // Positions in world coordinates.
+  const lamps = [
+    // {x, y, r, flicker}
+    { x: 260,  y: 760, r: 240, base: 1.0, flicker: 0.06, phase: 0.0 },   // left lamp pool
+    { x: 800,  y: 620, r: 300, base: 1.0, flicker: 0.04, phase: 1.2 },   // center human pool
+    { x: 1340, y: 800, r: 260, base: 1.0, flicker: 0.05, phase: 2.4 },   // right lamp pool
+    { x: 560,  y: 380, r: 170, base: 0.9, flicker: 0.08, phase: 3.1 },   // upper left secondary
+    { x: 1120, y: 340, r: 180, base: 0.9, flicker: 0.07, phase: 4.0 },   // upper right secondary
+  ];
+
+  // The human stands inside the center pool
+  const human = { x: 800, y: 560, sway: 0 };
+
+  // Shadow state
+  const shadow = {
+    x: 260, y: 800,
+    vx: 0, vy: 0,
+    radius: 26,
+    speed: 5.2,
+    trail: [],
+    maxTrail: 18,
+    jumping: false,
+    jumpT: 0,
+    jumpFrom: null,
+    jumpTo: null,
+    jumpsLeft: 3,
+  };
+
+  const input = { up:0, down:0, left:0, right:0, jump:false };
+
+  /* ---------- Canvas sizing ---------- */
+  function resize() {
+    const parent = canvas.parentElement;
+    const rect = parent.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = Math.floor(rect.width  * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width  = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ---------- Input: keyboard ---------- */
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowUp','w','W'].includes(e.key))    input.up = 1;
+    if (['ArrowDown','s','S'].includes(e.key))  input.down = 1;
+    if (['ArrowLeft','a','A'].includes(e.key))  input.left = 1;
+    if (['ArrowRight','d','D'].includes(e.key)) input.right = 1;
+    if (e.key === ' ' || e.code === 'Space')    { input.jump = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (['ArrowUp','w','W'].includes(e.key))    input.up = 0;
+    if (['ArrowDown','s','S'].includes(e.key))  input.down = 0;
+    if (['ArrowLeft','a','A'].includes(e.key))  input.left = 0;
+    if (['ArrowRight','d','D'].includes(e.key)) input.right = 0;
+  });
+
+  /* ---------- Input: touch joystick ---------- */
+  (function () {
+    let active = false, cx = 0, cy = 0, id = null;
+    const maxR = 42;
+    const setNub = (dx, dy) => {
+      const len = Math.hypot(dx, dy);
+      if (len > maxR) { dx = dx / len * maxR; dy = dy / len * maxR; }
+      nub.style.transform = `translate(${dx}px, ${dy}px)`;
+      const nx = dx / maxR, ny = dy / maxR;
+      input.left  = nx < -0.15 ? -nx : 0;
+      input.right = nx >  0.15 ?  nx : 0;
+      input.up    = ny < -0.15 ? -ny : 0;
+      input.down  = ny >  0.15 ?  ny : 0;
+    };
+    const reset = () => {
+      active = false; id = null;
+      nub.style.transform = 'translate(0,0)';
+      input.left = input.right = input.up = input.down = 0;
+    };
+    joystick.addEventListener('pointerdown', (e) => {
+      active = true; id = e.pointerId;
+      const r = joystick.getBoundingClientRect();
+      cx = r.left + r.width/2; cy = r.top + r.height/2;
+      joystick.setPointerCapture(id);
+      setNub(e.clientX - cx, e.clientY - cy);
+    });
+    joystick.addEventListener('pointermove', (e) => {
+      if (!active || e.pointerId !== id) return;
+      setNub(e.clientX - cx, e.clientY - cy);
+    });
+    joystick.addEventListener('pointerup',   reset);
+    joystick.addEventListener('pointercancel', reset);
+  })();
+
+  jumpBtn.addEventListener('pointerdown', (e) => { input.jump = true; e.preventDefault(); });
+
+  /* ---------- Drag shadow directly (touch or mouse) ---------- */
+  (function () {
+    let dragging = false;
+    canvas.addEventListener('pointerdown', (e) => {
+      const p = toWorld(e);
+      if (Math.hypot(p.x - shadow.x, p.y - shadow.y) < 120) {
+        dragging = true;
+        canvas.setPointerCapture(e.pointerId);
+      }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const p = toWorld(e);
+      const dx = p.x - shadow.x;
+      const dy = p.y - shadow.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 0.001) {
+        input.right = Math.max(0,  dx) / Math.max(len, 1);
+        input.left  = Math.max(0, -dx) / Math.max(len, 1);
+        input.down  = Math.max(0,  dy) / Math.max(len, 1);
+        input.up    = Math.max(0, -dy) / Math.max(len, 1);
+      }
+    });
+    const stop = () => {
+      dragging = false;
+      input.left = input.right = input.up = input.down = 0;
+    };
+    canvas.addEventListener('pointerup', stop);
+    canvas.addEventListener('pointercancel', stop);
+  })();
+
+  function toWorld(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) / r.width  * W,
+      y: (e.clientY - r.top)  / r.height * H,
+    };
+  }
+
+  /* ---------- Lighting helpers ---------- */
+  function lampIntensity(lamp, t) {
+    return lamp.base + Math.sin(t * 1.6 + lamp.phase) * lamp.flicker;
+  }
+
+  // Returns the softmax brightness at (x,y) from all lamps, 0..~1
+  function lightAt(x, y, t) {
+    let total = 0;
+    for (const l of lamps) {
+      const d = Math.hypot(x - l.x, y - l.y);
+      if (d < l.r) {
+        const k = 1 - d / l.r;      // 0..1
+        total += k * k * lampIntensity(l, t);
+      }
+    }
+    return total;
+  }
+
+  // Is a position lit enough to stand?
+  function isLit(x, y, t) {
+    return lightAt(x, y, t) > 0.18;
+  }
+
+  // Find nearest lit point, used to "pull" the shadow back if it strays (shouldn't happen often)
+  function nearestLampPoint(x, y) {
+    let best = null, bestD = Infinity;
+    for (const l of lamps) {
+      const dx = x - l.x, dy = y - l.y;
+      const d = Math.hypot(dx, dy);
+      const px = l.x + dx / (d || 1) * Math.min(d, l.r * 0.85);
+      const py = l.y + dy / (d || 1) * Math.min(d, l.r * 0.85);
+      const dd = Math.hypot(x - px, y - py);
+      if (dd < bestD) { bestD = dd; best = { x: px, y: py }; }
+    }
+    return best;
+  }
+
+  /* ---------- Update ---------- */
+  let lastT = performance.now();
+  let globalT = 0;
+  let flickerTimer = 0;
+  let reachedHuman = false;
+
+  function update(dt, t) {
+    // Human micro-sway
+    human.sway = Math.sin(t * 1.2) * 3;
+
+    // Shadow control
+    if (!shadow.jumping) {
+      const mx = (input.right - input.left);
+      const my = (input.down  - input.up);
+      const len = Math.hypot(mx, my) || 1;
+      const nx = mx / Math.max(len, 1);
+      const ny = my / Math.max(len, 1);
+
+      const speed = shadow.speed * (dt / 16.67);
+      let tx = shadow.x + nx * speed * (Math.abs(mx) + Math.abs(my) > 0 ? 1 : 0);
+      let ty = shadow.y + ny * speed * (Math.abs(mx) + Math.abs(my) > 0 ? 1 : 0);
+
+      // Clamp in bounds
+      tx = Math.max(40, Math.min(W - 40, tx));
+      ty = Math.max(40, Math.min(H - 40, ty));
+
+      // Only move if target is lit — dark zones block movement
+      if (isLit(tx, ty, t)) {
+        shadow.x = tx;
+        shadow.y = ty;
+      } else {
+        // Try axis-separated motion for smoother sliding along edges
+        if (isLit(tx, shadow.y, t)) shadow.x = tx;
+        else if (isLit(shadow.x, ty, t)) shadow.y = ty;
+      }
+
+      // Jump initiation
+      if (input.jump && shadow.jumpsLeft > 0 && (Math.abs(mx) + Math.abs(my) > 0)) {
+        // Pick a landing point in the direction of movement, up to 320 units away,
+        // preferring the first lamp pool reachable.
+        const dirX = nx, dirY = ny;
+        let landed = null;
+        for (let dist = 180; dist <= 420; dist += 20) {
+          const lx = shadow.x + dirX * dist;
+          const ly = shadow.y + dirY * dist;
+          if (lx < 60 || lx > W-60 || ly < 60 || ly > H-60) break;
+          if (isLit(lx, ly, t + 0.001)) { landed = { x: lx, y: ly }; break; }
+        }
+        if (landed) {
+          shadow.jumping = true;
+          shadow.jumpT = 0;
+          shadow.jumpFrom = { x: shadow.x, y: shadow.y };
+          shadow.jumpTo   = landed;
+          shadow.jumpsLeft--;
+          chipJmp.textContent = 'Jumps · ' + shadow.jumpsLeft;
+        }
+      }
+      input.jump = false;
+    } else {
+      shadow.jumpT += dt / 420; // ~420ms jump
+      if (shadow.jumpT >= 1) {
+        shadow.jumpT = 1;
+        shadow.x = shadow.jumpTo.x;
+        shadow.y = shadow.jumpTo.y;
+        shadow.jumping = false;
+      } else {
+        const k = shadow.jumpT;
+        shadow.x = shadow.jumpFrom.x + (shadow.jumpTo.x - shadow.jumpFrom.x) * k;
+        shadow.y = shadow.jumpFrom.y + (shadow.jumpTo.y - shadow.jumpFrom.y) * k;
+      }
+    }
+
+    // Trail
+    shadow.trail.push({ x: shadow.x, y: shadow.y, a: 1 });
+    if (shadow.trail.length > shadow.maxTrail) shadow.trail.shift();
+    shadow.trail.forEach(p => p.a *= 0.92);
+
+    // Check distance to human feet
+    const d = Math.hypot(shadow.x - human.x, shadow.y - (human.y + 60));
+    if (d < 80) {
+      reachedHuman = true;
+      flickerTimer = 0.8;
+      chipSt.textContent = 'Tethered · Tight';
+      head.classList.remove('safe');
+      // refill jumps as a reward
+      if (shadow.jumpsLeft < 3) {
+        shadow.jumpsLeft = 3;
+        chipJmp.textContent = 'Jumps · 3';
+      }
+    } else if (d > 260) {
+      reachedHuman = false;
+      chipSt.textContent = 'Drifting';
+      head.classList.add('safe');
+    } else {
+      chipSt.textContent = 'Tethered';
+      head.classList.remove('safe');
+    }
+    flickerTimer = Math.max(0, flickerTimer - dt / 1000);
+  }
+
+  /* ---------- Render ---------- */
+  function render(t) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / W;
+    const scaleY = canvas.height / H;
+
+    ctx.save();
+    ctx.scale(scaleX, scaleY);
+
+    // Slight global "camera" sway
+    const camX = Math.sin(t * 0.0004) * 6;
+    const camY = Math.cos(t * 0.00035) * 4;
+    ctx.translate(camX, camY);
+
+    // Global flicker modulation when shadow is near human
+    const flick = flickerTimer > 0 ? (0.72 + Math.random() * 0.35) : 1;
+
+    /* --- Floor base --- */
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#06060a');
+    grad.addColorStop(1, '#020203');
+    ctx.fillStyle = grad;
+    ctx.fillRect(-20, -20, W+40, H+40);
+
+    /* --- Wooden floor suggestion lines --- */
+    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 14; i++) {
+      const y = (H / 14) * i + 40;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    /* --- Light pools (floor puddles of light) --- */
+    ctx.globalCompositeOperation = 'lighter';
+    for (const l of lamps) {
+      const intensity = lampIntensity(l, t / 1000) * flick;
+      const g = ctx.createRadialGradient(l.x, l.y, 2, l.x, l.y, l.r);
+      g.addColorStop(0, `rgba(255, 240, 205, ${0.55 * intensity})`);
+      g.addColorStop(0.4, `rgba(255, 235, 190, ${0.22 * intensity})`);
+      g.addColorStop(1, 'rgba(255, 235, 190, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hot center
+      const gh = ctx.createRadialGradient(l.x, l.y - 4, 0, l.x, l.y - 4, 40);
+      gh.addColorStop(0, `rgba(255, 250, 230, ${0.9 * intensity})`);
+      gh.addColorStop(1, 'rgba(255, 250, 230, 0)');
+      ctx.fillStyle = gh;
+      ctx.beginPath();
+      ctx.arc(l.x, l.y - 4, 40, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    /* --- Light cone coming from ceiling above the center lamp --- */
+    drawLightCone(800, -40, 620, 220, t);
+    drawLightCone(260, -40, 760, 160, t + 1.4);
+    drawLightCone(1340,-40, 800, 180, t + 2.6);
+
+    /* --- Subtle floor pool borders (inner shimmer) --- */
+    ctx.save();
+    for (const l of lamps) {
+      ctx.strokeStyle = `rgba(255,240,205,${0.05 + 0.04 * Math.sin(t/500 + l.phase)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, l.r * 0.95, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    /* --- Human silhouette (standing in center light pool) --- */
+    drawHuman(human.x + human.sway, human.y, t);
+
+    /* --- Shadow trail --- */
+    for (let i = 0; i < shadow.trail.length; i++) {
+      const p = shadow.trail[i];
+      const a = p.a * (i / shadow.trail.length) * 0.6;
+      ctx.fillStyle = `rgba(0,0,0,${a})`;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, shadow.radius * 1.2, shadow.radius * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    /* --- Shadow (the player) --- */
+    drawShadow(shadow, t);
+
+    /* --- Tether line from human feet to shadow --- */
+    drawTether(human.x + human.sway, human.y + 60, shadow.x, shadow.y, t);
+
+    /* --- Soft fog overlay --- */
+    drawFog(t);
+
+    /* --- Flicker vignette when near human --- */
+    if (flickerTimer > 0) {
+      ctx.fillStyle = `rgba(0,0,0,${0.25 * (flickerTimer / 0.8)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    ctx.restore();
+  }
+
+  function drawLightCone(sx, sy, tx, width, t) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const shimmer = 0.9 + Math.sin(t/700 + sx) * 0.08;
+    const g = ctx.createLinearGradient(sx, sy, sx, tx);
+    g.addColorStop(0,   `rgba(255,240,205,${0.22 * shimmer})`);
+    g.addColorStop(0.8, `rgba(255,240,205,${0.05 * shimmer})`);
+    g.addColorStop(1,   'rgba(255,240,205,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + width, tx);
+    ctx.lineTo(sx - width, tx);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHuman(x, y, t) {
+    ctx.save();
+    // Feet shadow (ellipse) - cast by human on floor
+    const feetY = y + 60;
+    const feetGrad = ctx.createRadialGradient(x, feetY, 2, x, feetY, 120);
+    feetGrad.addColorStop(0, 'rgba(0,0,0,0.85)');
+    feetGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = feetGrad;
+    ctx.beginPath();
+    ctx.ellipse(x, feetY, 120, 30, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Elongated cast shadow in direction away from nearest lamp for drama
+    const l = lamps[1];
+    const dx = x - l.x, dy = y - l.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const castLen = 180;
+    ctx.save();
+    ctx.translate(x, feetY);
+    ctx.rotate(Math.atan2(uy, ux));
+    const castGrad = ctx.createLinearGradient(0, 0, castLen, 0);
+    castGrad.addColorStop(0, 'rgba(0,0,0,0.7)');
+    castGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = castGrad;
+    ctx.beginPath();
+    ctx.ellipse(castLen/2, 0, castLen/2, 22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Body silhouette
+    ctx.fillStyle = '#060607';
+    // legs
+    ctx.fillRect(x - 14, y + 10, 10, 52);
+    ctx.fillRect(x + 4,  y + 10, 10, 52);
+    // torso
+    ctx.beginPath();
+    ctx.moveTo(x - 26, y - 60);
+    ctx.lineTo(x + 26, y - 60);
+    ctx.lineTo(x + 22, y + 18);
+    ctx.lineTo(x - 22, y + 18);
+    ctx.closePath();
+    ctx.fill();
+    // arms
+    ctx.fillRect(x - 32, y - 54, 8, 62);
+    ctx.fillRect(x + 24, y - 54, 8, 62);
+    // head
+    ctx.beginPath();
+    ctx.arc(x, y - 82, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rim light on human
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,240,205,0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x - 20, y - 82, 22, Math.PI * 0.8, Math.PI * 1.3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 26, y - 60);
+    ctx.lineTo(x - 22, y + 18);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawShadow(s, t) {
+    ctx.save();
+    // When jumping, offset upward with arc + add vertical shrink
+    let drawX = s.x, drawY = s.y, squash = 1;
+    if (s.jumping) {
+      const k = s.jumpT;
+      const arc = Math.sin(k * Math.PI) * 60;
+      drawY = s.y - arc;
+      squash = 1 - Math.sin(k * Math.PI) * 0.35;
+    }
+
+    // Glow around shadow (soft black + gold rim)
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(drawX, drawY, 2, drawX, drawY, 70);
+    glow.addColorStop(0, 'rgba(255,240,205,0.35)');
+    glow.addColorStop(1, 'rgba(255,240,205,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(drawX, drawY, 70, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Shadow body (ellipse puddle)
+    const bodyGrad = ctx.createRadialGradient(drawX, drawY, 2, drawX, drawY, s.radius * 1.6);
+    bodyGrad.addColorStop(0, 'rgba(0,0,0,0.95)');
+    bodyGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(drawX, drawY, s.radius * 1.4 * squash, s.radius * 0.8 * squash, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tendrils
+    const tendrils = 5;
+    for (let i = 0; i < tendrils; i++) {
+      const a = (t/800) + i * (Math.PI * 2 / tendrils);
+      const rx = Math.cos(a) * (s.radius * 1.7);
+      const ry = Math.sin(a) * (s.radius * 0.9);
+      ctx.fillStyle = `rgba(0,0,0,${0.25 + 0.12 * Math.sin(t/400 + i)})`;
+      ctx.beginPath();
+      ctx.ellipse(drawX + rx, drawY + ry, 8, 4, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawTether(x1, y1, x2, y2, t) {
+    ctx.save();
+    const dist = Math.hypot(x2 - x1, y2 - y1);
+    const a = Math.max(0, 1 - dist / 900) * 0.35;
+    if (a <= 0) { ctx.restore(); return; }
+    ctx.strokeStyle = `rgba(255,240,205,${a})`;
+    ctx.setLineDash([4, 10]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // wavy line
+    const steps = 20;
+    for (let i = 0; i <= steps; i++) {
+      const k = i / steps;
+      const x = x1 + (x2 - x1) * k;
+      const y = y1 + (y2 - y1) * k + Math.sin(t/400 + k * 6) * 4;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFog(t) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    for (let i = 0; i < 4; i++) {
+      const y = (Math.sin(t/2000 + i) * 0.5 + 0.5) * H;
+      const x = (t/20 + i * 300) % (W + 400) - 200;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, 320);
+      g.addColorStop(0, 'rgba(255,255,255,0.05)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, 320, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* ---------- Loop ---------- */
+  function frame(now) {
+    const dt = Math.min(50, now - lastT);
+    lastT = now;
+    globalT = now;
+    update(dt, now / 1000);
+    render(now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame((t) => { lastT = t; requestAnimationFrame(frame); });
+
+  // Focus canvas for keyboard input when clicked
+  canvas.addEventListener('pointerdown', () => canvas.focus());
+})();
+</script>
+</body>
+</html>
